@@ -1,0 +1,201 @@
+###Title
+========================================================
+
+Peer-to-peer loans service [Lending Club][lending] made publicly available a data set of loans. 
+Based on the entire data set, I will try to identify and quantify associations between the risk of a loan defaulting 
+and the other variables in the data set.
+
+###Loading the Data from S3
+============================
+We have loaded all available datasets from the LendingClub.com website into a bucket in S3. Here we will download our data 
+and merge the files so that we have 9 years of data.
+
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+setwd('~/git/assignment3/')
+download.file('https://spark-public.s3.amazonaws.com/loansdata/Loans07-11.csv',method='curl',destfile='loansA.csv')
+download.file('https://spark-public.s3.amazonaws.com/loansdata/Loans12-13.csv',method='curl',destfile='loansB.csv')
+download.file('https://spark-public.s3.amazonaws.com/loansdata/Loans13-14.csv',method='curl',destfile='loansC.csv')
+download.file('https://spark-public.s3.amazonaws.com/loansdata/Loans15.csv',method='curl',destfile='loansD.csv')
+require(randomForest)
+require(ggplot2)
+require(xtable)
+require(randomForest)
+require(ggplot2)
+require(xtable)
+require(dplyr)
+require(corrplot)
+require(pROC)
+require(caret)
+require(doParallel)
+registerDoParallel(cores = 2)
+loans=read.csv('loansData.csv',stringsAsFactors=FALSE)
+LoansA = read.csv('loansA.csv', stringsAsFactors = FALSE, header = T, skip = 1)
+LoansB = read.csv('loansB.csv', stringsAsFactors = FALSE, header = T, skip = 1)
+LoansC = read.csv('loansC.csv', stringsAsFactors = FALSE, header = T, skip = 1)
+LoansD = read.csv('loansD.csv', stringsAsFactors = FALSE, header = T, skip = 1)
+LoansE = rbind(LoansA, LoansB, LoansC, LoansD)
+LA = tbl_df(LoansE)
+#replaced underscore with with no space
+names(LA) <- gsub("_","", names(LA))
+```
+###Cleaning & Preprocessing the Data
+============================
+We shall carry out a series of data transformation steps next to clean the data and process
+it in a way that will be more useful to our model.
+
+We start by removing 'months' from term, and changing percentages to decimal, we set interest rate to decimal
+and we set revol utility to decimal:
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA <-LA %>%
+        mutate(term = as.numeric(gsub("\\D","",term))) %>%
+        rename(termmonths = term) %>%
+        mutate(intrate = as.numeric(gsub("%","",intrate))/100) %>%
+        mutate(revolutil = as.numeric(gsub("%","",revolutil))/100) %>%
+        mutate(dti = as.numeric(gsub("%","",dti))/100)
+```
+Next we store the categorical data as factors.  So this includes the fields Purpose, Home ownership, Emp length & Addr state
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA$purpose=as.factor(LA$purpose)
+LA$homeownership=as.factor(LA$homeownership)
+LA$emplength=as.factor(LA$emplength)
+LA$addrstate=as.factor(LA$addrstate)
+```
+The field Addr_State has 46 unique values and the algorithm we will use at a later stage cannot cope with so many factors. 
+For that reason we used a "dummy variable" and have created 46 new columns for every state, where a value of 1 means that
+a loan was issued in that state and 0 otherwise.
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA=data.frame(LA[,-match(c('addrstate'),colnames(LA))],model.matrix(~addrstate-1,LA))
+tmp=grep('addrstate',colnames(LA))
+for(i in 1:length(tmp)){LA[,tmp[i]]=as.factor(LA[,tmp[i]])}
+```
+Alot of previous work on the LendingClub data set exclude those loans which are tagged with Does Not Meet The Credit Policy, 
+on looking at the data in these loans they seem perfectly fine so we have chosen to include them in our dataset.
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA$loanstatus <- gsub("Does not meet the credit policy. Status:","",LA$loanstatus)
+LA$loanstatus <- gsub("Does not meet the credit policy.  Status:","",LA$loanstatus)
+```
+We changed the classes of Desc, Emp Title & Title for variables
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+colChar <- c("desc","emptitle","title")
+LA[colChar] <- sapply(LA[colChar],as.character)
+```
+We cleaned up the Desc by removing the string "Borrower added on..."
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA$desc <- with(LA,gsub("Borrower added on \\d+/\\d+/\\d+ >" ,"",desc))
+LA$desc <- with(LA,gsub("<br>","",desc))
+LA$desc <- with(LA,gsub("^\\s+ ","",desc))
+```
+We created variables for character counts, and binned variables. Some metadata might be helpful here:
+   * Earliestcrline: the month the borrowers earliest reported credit line was opened
+   * delinq2yrs: the number of 30+ DPD incidences in the borrowers credit file for the past 2 years
+   * mthssincelastmajorderog : months since recent 90 day or worse rating
+   * mthssincelastrecord : number of months since the last public record
+   * mthssincelastdelin: number of months since borrowers last delinquency
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+LA<-LA %>%
+        mutate(desclength = nchar(desc),
+               emptitlelength = nchar(emptitle),
+               titlelength = nchar(title),
+               
+		earliestcrline =2016 - as.numeric(gsub("\\w+-","",earliestcrline)),
+               numofdelinq = ifelse(is.na(mthssincelastdelinq), 0, 
+                                    ifelse(mthssincelastdelinq > 24 & delinq2yrs == 0,1,delinq2yrs)),
+
+               mthssincelastrecord = ifelse(mthssincelastrecord>=0 & mthssincelastrecord <=77, "0-77","78-129"),
+               mthssincelastrecord = ifelse(is.na(mthssincelastrecord),"Never",mthssincelastrecord),
+               mthssincelastrecord = as.factor(mthssincelastrecord),
+               
+		mthssincelastmajorderog = ifelse(mthssincelastmajorderog>=0 & mthssincelastmajorderog <=45,"0-45",
+			ifelse(mthssincelastmajorderog >= 46 & mthssincelastmajorderog <=75, "46-75",">75")),
+               mthssincelastmajorderog = ifelse(is.na(mthssincelastmajorderog),"Never",mthssincelastmajorderog),
+               mthssincelastmajorderog = as.factor(mthssincelastmajorderog)) %>%
+              
+ filter(loanstatus != "Current", loanstatus != "", loanstatus != "In Review", loanstatus != "Expired", loanstatus != "Removed", loanstatus != "Withdrawn by Applicant", loanstatus != "In Funding", loanstatus != "Issuing", loanstatus != "Issued", loanstatus != "Not Yet Issued", loanstatus != "Partially Funded")
+```
+Now we create our classification variable "Default" or "No.Default" based on Lending Club's probabilities
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+statusClass <- as.factor(sapply(LA$loanstatus, function(x){
+                ret = 0
+                if (x == "Fully Paid") ret = "No_Default" 
+                else if (x == "Charged Off") ret = "Default" 
+                else if(x == "Default") ret = if (rbinom(1,1,.92)==1) "Default" else "No_Default"
+                else if(x == "In Grace Period") ret = if (rbinom(1,1,.24)==1) "Default" else "No_Default"
+                else if(x == "Late (16-30 days)") ret = if (rbinom(1,1,.51)==1) "Default" else "No_Default"
+                else if(x == "Late (31-120 days)") ret = if (rbinom(1,1,.72)==1) "Default" else "No_Default"
+		else ret = x
+                return(ret)
+}))
+LA <- cbind(LA,statusClass)
+```
+Lastly we simplified the datset next by removing columns that are not applicable to our model, like ID & url etc
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+colRemove <- c("zipcode", "id", 
+"memberid", "nextpymentd", 
+"totalpymntinv", "url", "lastpymntd", "nextpymntd", "policycode", "pymntplan","totalpymnt", "totalrecprncp", 
+"totalrecint", "totalreclatefee", "recoveries", "collectionrecoveryfee", "lastpymntamnt","lastficorangehigh",
+"lastficorangelow","grade","subgrade","fundedamnt","fundedamntinv", "issued","lastcreditpulld", "totalacc", 
+"collections12mthsexmed", "annualincjoint", "dtijoint", "verificationstatusjoint","accnowdelinq","totcollamt",
+"totcurbal", "openacc6m","openil6m","openil12m","openil24m", "mthssincercntil","totalbalil", "ilutil",
+"openrv12m", "openrv24m","maxbalbc","allutil","totalrevhilim", "inqfi","totalcutl","inqlast12m","accopenpast24mths", "avgcurbal","bcopentobuy"
+, "bcutil","chargeoffwithin12mths", "delinqamnt","mosinoldilacct", "mosinoldrevtlop","mosinrcntrevtlop", "mosinrcnttl","mortacc"
+, "mthssincerecentbc","mthssincerecentbcdlq", "mthssincerecentinq","mthssincerecentrevoldelinq"
+, "numacctsever120pd","numactvbctl", "numactvrevtl","numbcsats", "numbctl","numiltl", "numoprevtl","numrevaccts"
+, "numrevtlbalgt0","numsats", "numtl120dpd2m","numtl30dpd", "numtl90gdpd24m","numtloppast12m", "pcttlnvrdlq","percentbcgt75"
+, "pubrecbankruptcies","taxliens", "tothicredlim","totalbalexmort", "totalbclimit","totalilhighcreditlimit"  )
+LA <- LA[,!names(LA) %in% colRemove]
+```
+
+###Important Features
+=============
+
+To figure out what are important parameters associated with a Loan defaulting we employed a random forest algorithm. 
+The advantages of the algorithm are:
+
+   * Very easy to set-up
+   * Works very well with nonlinear features
+   * Fast
+
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+train=loans
+set.seed(1234)
+model=randomForest(statusClass~.,data=train,ntree=100)
+result=model$importance[order(model$importance,decreasing=TRUE),]
+result=head(data.frame(Feature=factor(names(result),levels=as.character(names(result))),Weight=as.integer(model$importance[order(model$importance,decreasing=TRUE),])),15)c 
+print(xtable(result),type='html')
+```
+
+###Results
+=============
+
+Once the randomForst model is built "importance" variables can be referenced for weights of all features. 
+The following graph shows the important features. X is most important variable when deciding whether to invest in a loan, 
+followed by Y which is Z times less important. X, X, X are important, however the weights are less significant. 
+
+Interesting to note, that X and X have little importance. 
+
+Here is a list of weights of features:
+
+```{r comment=NA,echo=FALSE,message=FALSE,results='asis'}
+ggplot(result,aes(Weight,Feature))+geom_point()+labs(title = "List of Important Features") 
+```
+
+
+###Conclusions
+=============
+
+In this analysis we tried to determine which borrower or Loan related parameters are most important 
+for investors to look at when considering whether to invest in loans. Our solution involves Random Forest algorithm 
+and data manipulation, which shows that most important features are the following: XXXX
+You can find the code of this analysis [here][code].
+   
+###Links:
+========
+Data set: [https://www.lendingclub.com/home.action][lending]  
+Source code of analysis: [https://github.com/kafka399/coursera-loans][code]  
+
+[lending]: https://www.lendingclub.com/home.action
+[code]:https://github.com/datadamsel/Assignment3
+
+
+
+
