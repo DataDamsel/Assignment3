@@ -191,7 +191,7 @@ You can find the code of this analysis [here][code].
 ###Links:
 ========
 Data set: [https://www.lendingclub.com/home.action][lending]  
-Source code of analysis: [https://github.com/kafka399/coursera-loans][code]  
+Source code of analysis: [https://github.com/datadamsel/coursera-loans][code]  
 
 [lending]: https://www.lendingclub.com/home.action
 [code]:https://github.com/datadamsel/Assignment3
