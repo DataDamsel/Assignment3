@@ -1,0 +1,320 @@
+
+      ##############################################################################
+      ##############################################################################
+      ###                                                                        ###
+      ###                           assignment  3:                               ###
+      ###                                                                        ###
+      ##############################################################################
+      ##############################################################################
+
+
+
+setwd('/Users/Timbo/Documents/Aine/LendingClub')
+
+
+require(randomForest)
+require(ggplot2)
+require(xtable)
+require(dplyr)
+require(corrplot)
+require(pROC)
+require(caret)
+require(doParallel)
+registerDoParallel(cores = 2)
+
+load("data/LC.RData")
+
+#replaced underscore with with no space
+names(LC) <- gsub("_","", names(LC))
+
+
+#removed months from term, percentages to decimal
+#set interest rate to decimal
+#set revol utility to decimal
+LC <-LC %>%
+  mutate(term = as.numeric(gsub("\\D","",term))) %>%
+  rename(termmonths = term) %>%
+  mutate(intrate = as.numeric(gsub("%","",intrate))/100) %>%
+  mutate(revolutil = as.numeric(gsub("%","",revolutil))/100) %>%
+  mutate(dti = as.numeric(gsub("%","",dti))/100)
+
+
+
+
+#Store the categorical data as factors
+#Purpose
+#Home ownership
+#Emp length
+#Addr state
+LC$purpose=as.factor(LC$purpose)
+LC$homeownership=as.factor(LC$homeownership)
+LC$emplength=as.factor(LC$emplength)
+LC$addrstate=as.factor(LC$addrstate)
+
+# Build Addr state matrix
+#"State" variable has 46 unique values and the algorithm can't cope #with so many factor. For that reason I used "dummy variable" and I #have created 46 new columns for every state, where 1 means loans was #issued in that state and 0 - otherwise.
+
+LC=data.frame(LC[,-match(c('addrstate'),colnames(LC))],model.matrix(~addrstate-1,LC))
+tmp=grep('addrstate',colnames(LC))
+for(i in 1:length(tmp)){LC[,tmp[i]]=as.factor(LC[,tmp[i]])}
+
+
+#Include loans that include "Does not meet the credit policy"
+LC$loanstatus <- gsub("Does not meet the credit policy. Status:","",LC$loanstatus)
+LC$loanstatus <- gsub("Does not meet the credit policy.  Status:","",LC$loanstatus)
+
+#Desc
+#Emp Title
+#Title
+#changed cLCsses for variables
+colChar <- c("desc","emptitle","title")
+LC[colChar] <- sapply(LC[colChar],as.character)
+#removed "Borrower added on..." string from desc
+LC$desc <- with(LC,gsub("Borrower added on \\d+/\\d+/\\d+ >" ,"",desc))
+LC$desc <- with(LC,gsub("<br>","",desc))
+LC$desc <- with(LC,gsub("^\\s+ ","",desc))
+
+
+#created variables for character counts, and binned variables
+#Earliestcrline: the month the borrowers earliest reported credit
+#line was opened
+#delinq2yrs: the number of 30+ DPD incidences 
+#in the borrowers credit file for the past 2 years
+#mthssincelastmajorderog : months since recent 90 day or worse rating
+#mthssincelastrecord : number of months since the LCst public record
+#mthssincelastdelin: number of months since borrowers LCst
+#delinquency
+
+LC<-LC %>%
+  mutate(desclength = nchar(desc),
+         emptitlelength = nchar(emptitle),
+         titlelength = nchar(title),
+         
+         earliestcrline =2016 - as.numeric(gsub("\\w+-","",earliestcrline)),
+         numofdelinq = ifelse(is.na(mthssincelastdelinq), 0, 
+                              ifelse(mthssincelastdelinq > 24 & delinq2yrs == 0,1,delinq2yrs)),
+         
+         mthssincelastrecord = ifelse(mthssincelastrecord>=0 & mthssincelastrecord <=77, "0-77","78-129"),
+         mthssincelastrecord = ifelse(is.na(mthssincelastrecord),"Never",mthssincelastrecord),
+         mthssincelastrecord = as.factor(mthssincelastrecord),
+         
+         mthssincelastmajorderog = ifelse(mthssincelastmajorderog>=0 & mthssincelastmajorderog <=45,"0-45",
+                                          ifelse(mthssincelastmajorderog >= 46 & mthssincelastmajorderog <=75, "46-75",">75")),
+         mthssincelastmajorderog = ifelse(is.na(mthssincelastmajorderog),"Never",mthssincelastmajorderog),
+         mthssincelastmajorderog = as.factor(mthssincelastmajorderog)) %>%
+  
+  filter(loanstatus != "Current", loanstatus != "", loanstatus != "In Review", loanstatus != "Expired", loanstatus != "Removed", loanstatus != "Withdrawn by Applicant", loanstatus != "In Funding", loanstatus != "Issuing", loanstatus != "Issued", loanstatus != "Not Yet Issued", loanstatus != "Partially Funded")
+
+LC <- LC %>%
+  select(-emptitle,-desc,-title) 
+
+#create cLCssification variable "Default" or "No.Default" based on
+#Lending Club's probabilities
+statusClass <- as.factor(sapply(LC$loanstatus, function(x){
+  ret = 0
+  if (x == "Fully Paid") ret = "No_Default" 
+  else if (x == "Charged Off") ret = "Default" 
+  else if(x == "Default") ret = if (rbinom(1,1,.92)==1) "Default" else "No_Default"
+  else if(x == "In Grace Period") ret = if (rbinom(1,1,.24)==1) "Default" else "No_Default"
+  else if(x == "LCte (16-30 days)") ret = if (rbinom(1,1,.51)==1) "Default" else "No_Default"
+  else if(x == "LCte (31-120 days)") ret = if (rbinom(1,1,.72)==1) "Default" else "No_Default"
+  else ret = x
+  return(ret)
+}))
+
+
+LC <- cbind(LC,statusClass)
+LC$statusClass=as.factor(LC$statusClass)
+LC$verificationstatus=as.factor(LC$verificationstatus)
+LC$initialliststatus=as.factor(LC$initialliststatus)      
+LC$applicationtype=as.factor(LC$applicationtype)
+
+#columns to remove
+
+colRemove <- c("zipcode", "id", 
+               "memberid", "nextpymentd", "mosinoldilacct","inqlast12m", "mthssincelastdelinq",
+               "totalpymntinv", "url", 
+               "LCstpymntd", "nextpymntd", 
+               "policycode", "pymntpLan",
+               "totalpymnt", "totalrecprncp", 
+               "totalrecint", "totalrecLatefee", 
+               "recoveries", "collectionrecoveryfee", 
+               "Lastpymntamnt","Lastficorangehigh",
+               "Lastficorangelow","fundedamnt",
+               "fundedamntinv", "issued",
+               "Lastcreditpulld", "totalacc", 
+               "collections12mthsexmed", "annualincjoint", 
+               "dtijoint", "verificationstatusjoint",
+               "accnowdelinq","totcollamt",
+               "totcurbal", "openacc6m",
+               "openil6m","openil12m",
+               "openil24m", "mthssincercntil",
+               "totalbalil", "ilutil",
+               "openrv12m", "openrv24m",
+               "maxbalbc","allutil",
+               "totalrevhilim", "inqfi",
+               "totalcutl",
+               "accopenpast24mths", "avgcurbal","bcopentobuy"
+               , "bcutil","chargeoffwithin12mths"
+               , "delinqamnt","mosinoldiLCcct"
+               , "mosinoldrevtlop","mosinrcntrevtlop"
+               , "mosinrcnttl","mortacc"
+               , "mthssincerecentbc","mthssincerecentbcdlq"
+               , "mthssincerecentinq","mthssincerecentrevoldelinq"
+               , "numacctsever120pd","numactvbctl"
+               , "numactvrevtl","numbcsats"
+               , "numbctl","numiltl"
+               , "numoprevtl","numrevaccts"
+               , "numrevtlbalgt0","numsats"
+               , "numtl120dpd2m","numtl30dpd"
+               , "numtl90gdpd24m","numtloppast12m"
+               , "pcttlnvrdlq","percentbcgt75"
+               , "pubrecbankruptcies","taxliens"
+               , "tothicredlim","totalbalexmort"
+               , "totalbclimit","totalilhighcreditlimit"  )
+
+
+
+LC <- LC[,!names(LC) %in% colRemove]
+#---------------
+#Remove Nas
+
+LC <- na.omit(LC)
+
+
+
+
+
+# reduce the number of categories of purpose
+LC = mutate(LC, purpose_new = ifelse(purpose == "credit_card" | 
+                                       purpose == "debt_consolidation", "debt",
+                                     ifelse(purpose == "car" | 
+                                              purpose == "major_purchase" | 
+                                              purpose == "vacation" | 
+                                              purpose == "wedding" | 
+                                              purpose == "medical" | 
+                                              purpose == "other", "purchase",
+                                            ifelse(purpose == "house" | 
+                                                     purpose == "home_improvement" | 
+                                                     purpose == "moving" | 
+                                                     purpose == "renewable_energy", "purchase", purpose))))
+
+
+
+
+
+sub_grade_vec = unique(LC$subgrade) %>% .[order(., decreasing = T)]
+LC = mutate(LC, LC_score = match(subgrade, sub_grade_vec))
+
+
+LC = mutate(LC, desclength = ifelse(desclength >= 2000, "2000+", 
+                                    ifelse(desclength >= 1000, "1000-2000", 
+                                           ifelse(desclength >= 500, "500-1000", 
+                                                  ifelse(desclength >= 200, "200-500", 
+                                                         ifelse(desclength >= 100, "100-200",
+                                                                ifelse(desclength >= 50, "50-100",
+                                                                       ifelse(desclength >= 1, "1-50", 0))))))))
+LC = mutate(LC, emptitlelength = ifelse(emptitlelength >= 40, "40+", 
+                                        ifelse(emptitlelength >= 20, "20-40", 
+                                               ifelse(emptitlelength >= 15, "15-20", ifelse(emptitlelength >= 10, "10-15", 
+                                                                                            ifelse(emptitlelength >= 5,"5-10",
+                                                                                                   ifelse(emptitlelength >= 1, "1-5",  0)))))))
+LC = mutate(LC, titlelength = ifelse(titlelength >= 50, "50+", 
+                                     ifelse(titlelength >= 30, "30-50", 
+                                            ifelse(titlelength >= 18, "18-30", ifelse(titlelength >= 15, "15-18", 
+                                                                                      ifelse(titlelength >= 10,"10-15",
+                                                                                             ifelse(titlelength >= 5, "5-10",
+                                                                                                    ifelse(titlelength >= 1, "1-5",  0))))))))
+
+numofdelinq = ifelse(is.na(mthssinceLastdelinq), 0, 
+                     ifelse(mthssinceLastdelinq > 24 & delinq2yrs == 0,1,delinq2yrs))
+
+
+LC = mutate(LC, numofdelinq = ifelse(numofdelinq >= 10, "10+", 
+                                     ifelse(numofdelinq >= 6,"6-10",
+                                            ifelse(numofdelinq >= 3, "3-5",                                                                    ifelse(numofdelinq >= 1, "1-2",  0)))))
+
+
+# inq_Last_6mths buckets:
+LC = mutate(LC, inq_bucket = ifelse(inqlast6mths >= 7, "7+", 
+                                    ifelse(inqlast6mths >= 5, "5-6", 
+                                           ifelse(inqlast6mths >= 3, "3-4", 
+                                                  ifelse(inqlast6mths >= 1, "1-2", 0)))))
+
+# public record buckets: 
+LC = mutate(LC, rec_bucket = #ifelse(pubrec >= 10, "10+", 
+              #ifelse(pubrec >= 7, "7-9", 
+              #ifelse(pubrec >= 4, "4-6", 
+              ifelse(pubrec >= 1, "1+", 0))#)))
+
+
+groupvec = quantile(LC$annualinc, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, annual_inc_bucket = cut(LC$annualinc, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+groupvec = quantile(LC$dti, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, dti_bucket = cut(LC$dti, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+LC = mutate(LC, revol = as.numeric(gsub("%","",revolutil)))
+groupvec = quantile(LC$revol, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, revol_bucket = cut(LC$revol, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+
+groupvec = quantile(LC$revolbal, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, revol_bal_bucket = cut(LC$revolbal, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+
+groupvec = quantile(LC$openacc, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, open_acc_bucket = cut(LC$openacc, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+groupvec = quantile(LC$loanamnt, seq(0,1,0.1))
+Labels = c(0, prettyNum(groupvec[2:10], big.mark = ","), "+inf")
+Labels = paste(Labels[1:10], Labels[2:11], sep = "-")
+LC = mutate(LC, loanamnt_bucket = cut(LC$loanamnt, breaks = groupvec, Labels = factor(Labels), include.lowest=TRUE))
+
+#########
+# creating a numeric int_rate
+LC = mutate(LC, rate = as.numeric(gsub("%", "", intrate)))
+
+# creating a numeric emp_length
+LC = mutate(LC, emp = ifelse(emplength == "n/a", 0,
+                             ifelse(emplength == "< 1 year", 0.5,
+                                    ifelse(emplength == "10+ years", 10,
+                                           as.numeric(gsub(" years*","",emplength))))))
+
+# reduce income such that no income is greater than 200K:
+LC = mutate(LC, income = pmin(annualinc, 200000))
+
+
+# reduce open_acc such that no openacc is greater than 30:
+LC = mutate(LC, accounts = pmin(openacc, 30))
+
+# reduce pub_rec such that no pubrec is greater than 10:
+LC = mutate(LC, records = pmin(pubrec, 5))
+
+# creating a numeric revol_util and maxing it to 100
+LC = mutate(LC, revol_util_new = as.numeric(gsub("%", "", revolutil)))
+LC = mutate(LC, revol_util_maxed = pmin(revol_util_new, 100))
+
+
+# Simplifying Loan Status for investment summary:
+LC = mutate(LC, Status = ifelse(loanstatus  %in% c("Current", "In Grace Period", "Late (16-30 days)"), "Current",
+                                ifelse(loanstatus %in% c("Charged Off", "Late (31-120 days)", "Default"), "Charged",
+                                       "Paid")))
+
+
+# reduce income such that no revolving balance is greater than 200K:
+LC = mutate(LC, balance = pmin(revolbal, 100000))
+
+save(LC, file= "data/LC.RData")
+
+

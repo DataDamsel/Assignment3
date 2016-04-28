@@ -1,0 +1,260 @@
+---
+title: "ui.Rmd"
+author: "Aine"
+date: "April 28, 2016"
+output: html_document
+---
+
+```
+library(shinythemes)
+
+shinyUI(
+  navbarPage(
+    title = "Lending Club Interest Rate Calculator",
+    id = "nav",
+    theme = "bootstrap.css",
+    inverse = TRUE,
+    #position = "fixed-top",
+    
+    tabPanel("Introduction",
+             wellPanel(h2(toupper("Lending Club"))),
+             
+             wellPanel(
+               h3("Lending club:"),
+               h5("For this project, we wish to present and explore the data provided by", span(a(href="https://www.lendingclub.com", "Lending Club"))),
+               h5("Lending Club (LC) is a peer to peer online lending platform. It is the world's largest marketplace connecting borrowers and investors,"),
+               h5("where consumers and small business owners lower the cost of their credit and enjoy a better experience than traditional bank lending,"),
+               h5("and investors earn attractive risk-adjusted returns.")
+             ),
+             
+             wellPanel(
+               h3("How it works:"),
+               h5("  1. Customers interested in a loan complete a simple application at LendingClub.com"),
+               h5("  2. LC leverage online data and technology to quickly assess risk, determine a credit rating and assign appropriate interest rates."),
+               h5("  3. Qualified applicants receive offers in just minutes and can evaluate loan options with no impact to their credit score"),
+               h5("  4. Investors ranging from individuals to institutions select loans in which to invest and can earn monthly returns"),
+               h5("The entire process is online, using technology to lower the cost of credit and pass the savings back in the form of lower rates for borrowers and solid returns for investors."),
+               h5("Here is the link to", span(a(href="https://www.lendingclub.com/public/how-peer-lending-works.action", "more details")), "about Lending Club.")
+             ),
+             
+             wellPanel(
+               h3("Goal of the project:"),
+               h5("We will present and explore the data provided by LC at this", span(a(href="https://www.lendingclub.com/info/download-data.action", "address."))), 
+               h5("This data was made available to us after the creation of an investor account."),
+               h5("The data consists in 4 files updated every quarter on the same day as the quaterly results of the compagny are released. They contain information on almost all"),
+               h5("the loans issued by LC. The only loans missing from these files are the few loans where LC was not authorized to release publicly the details of the transactions."),
+               h5("The information available for each loan consists of all the details of the loans at the time of their issuance as well as more information relative to the latest"),
+               h5("status of loan such as how much principal has been paid so far, how much interest, if the loan was fully paid or defaulted, or if the borrower is late on payments etc.")
+             ),
+             
+             wellPanel(
+               h3("Instructions:"),
+               h5("1. You can run some analysis of the data yourself using the tab: 'Explore the data' where you can graph different discrete variable against any continuous variable available."),
+               h5("2. When you are ready, move on to the Interest Rate Prediction Tab and see what Interest Rate you would most likely be offered from Lending Club!"),
+               h5("3. Finally, if you are interested you can checkout the code!")
+             )
+    ),
+  
+    tabPanel("Full analysis",
+      fluidPage(
+        wellPanel(
+          actionButton("Load_report", "Load Report", icon = icon("arrow-circle-o-down")),
+          conditionalPanel(
+            condition = 'input.Load_report > 0',
+              includeMarkdown("data/LA.Rmd")
+          )
+        )
+      )
+    ),
+
+    tabPanel("Explore the data",    
+      h4("Use this tab to explore the relationship between the different features and credit risk"),
+      fluidRow(
+        column(2,
+          wellPanel(
+            selectInput(
+              "sub_data",
+              label = "Filter data",
+              choices = list("ALL" = "ALL",
+                             "Survived" = "Survived",
+                             "Defaulted" = "Defaulted",
+                             "Current" = "Current"),
+              selected = c("ALL")
+            )
+          ),
+          
+          wellPanel(
+            selectInput(
+              "Bub_category",
+              label = "Group",
+              choices = discrete_var,
+              selected = c("Inq_bucket")
+            )
+          ),
+          
+          wellPanel(
+            selectInput(
+              "Bub_x_axis",
+              label = "X-Axis",
+              choices = continuous_var,
+              selected = c("Defaults")
+            )
+          ),
+          
+          wellPanel(
+            selectInput(
+              "Bub_y_axis",
+              label = "Y-Axis",
+              choices = continuous_var,
+              selected = c("LC_Score")
+            )
+          ),
+          
+          wellPanel(
+            selectInput(
+              "Bub_size",
+              label = "Size",
+              choices = continuous_var,
+              selected = c("rate")
+            )
+          )
+        ),
+
+        column(10,        
+          wellPanel(
+            textOutput("Remaining_Bub_Plot")
+          )
+        ),
+        
+        column(6,
+          plotOutput("explore_plot"),
+          br(),
+          dataTableOutput("bub_data")
+        ),
+        
+        column(4,
+          plotOutput("plot_amounts"),
+          br(),
+          plotOutput("plot_number")
+        )
+      )
+    ),
+                    
+
+    
+    tabPanel("Calculate Interest Rate",
+             h4("Let our algorithm predict the Interest Rate that Lending Club will offer you!"),
+             fluidRow(
+               conditionalPanel(
+                 condition = '!input.Confirm || input.Disclaimer == 0',
+               
+                 column(12,
+                        wellPanel(
+                          h2("TERMS OF USE / DISCLAIMER")
+                        ),
+                        
+                        wellPanel(
+                          h3("1. No Financial Advice"),
+                          p("The Company is not a Registered Investment Advisor, Broker/Dealer, Financial Analyst, Financial Bank, Securities Broker or Financial Planner. The Information on the Site is provided for information purposes only. The Information is not intended to be and does not constitute financial advice or any other advice, is general in nature and not specific to you. Before using the Company's information to make an investment decision, you should seek the advice of a qualified and registered securities professional and undertake your own due diligence. None of the information on our Site is intended as investment advice, as an offer or solicitation of an offer to buy or sell, or as a recommendation, endorsement, or sponsorship of any security, Company, or fund. The Company is not responsible for any investment decision made by you. You are responsible for your own investment research and investment decisions.")
+                        ),
+                        
+                        wellPanel(
+                          h3("2. Disclosure Policy"),
+                          p("The Company's affiliates or associates and/or its employees may hold positions in securities that are described on the Site. They may, from time to time, hold positions consistent or inconsistent with information contained on the Site, have no obligation to notify Subscribers in any way regarding said positions and shall have no liability to Subscribers that relates in any way to said positions. Their affiliation or relationship to the Company or its Subscribers shall in no way limit the positions they may hold or when they may hold them.")
+                        ),
+                        
+                        
+                        
+                        wellPanel(
+                          checkboxInput("Confirm", "I confirm I read the disclaimer", value = FALSE),
+                          conditionalPanel(
+                            condition = 'input.Confirm',
+                            actionButton("Disclaimer", "I understand!", icon = icon("thumbs-o-up"))
+                          )
+                        ),
+                        
+                        br(),
+                        br(),
+                        br(),
+                        br(),
+                        br()
+                 )
+               ),
+               
+               conditionalPanel(
+                 condition = 'input.Confirm && input.Disclaimer > 0',
+                 column(3,
+                                     
+                 wellPanel(
+                 h4("Loan details:"),
+                 sliderInput("loanamnt2",
+                             label = "Amount sought in USD",
+                             width = "95%",
+                             step = 5,
+                             min = 1000, max = 35000, value=20000),
+               
+                 br(),
+                 h4("Borrower details:"),
+                 sliderInput("income2",
+                 label = "Annual income in USD 1,000s:",
+                 width = "95%",
+                 step = 5,
+                  min = 0, max = 200, value = 100),
+                 
+                 
+                 sliderInput("Emp2",
+                 label = p("Employment length:", 
+                 h6("0 means unemployed and 10 means 10+ years")),
+                 width = "95%",
+                 step = 0.5,
+                 min = 0, max = 10, value = 5
+                 ),
+                 
+                 sliderInput("DTI2",
+                             label = "Debt To Income ratio:",
+                             width = "95%",
+                             step = 2,
+                             min = 0, max = 40, value = 20
+                 )
+                 
+                 
+                 
+                  )
+                
+                 ),
+                 column(8,
+                 wellPanel(
+                       verbatimTextOutput("ratePrediction")
+                   )
+                      ))
+                 
+               )),
+ 
+    
+    tabPanel("Code",
+             h4("Please find below the code, and the link to the ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),      
+             tabsetPanel(
+               type = "pills", 
+               position = "left",
+               tabPanel("ui.R", includeMarkdown("ui.Rmd")), 
+               tabPanel("server.R", includeMarkdown("server.Rmd")), 
+               tabPanel("helpers.R", includeMarkdown("helpers.Rmd")), 
+               tabPanel("global.R", includeMarkdown("global.Rmd")),
+               tabPanel("prepData.R", includeMarkdown("prepData.Rmd"))
+             )
+    ),
+    
+    tabPanel("About",
+      wellPanel(
+        h5("App made by Aine O'Gorman & Abha Aggarwal"),
+        h5("The code is available on ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),
+        h5("Thank you for your time and we hope you are enjoying the app!")
+      ),
+      
+      wellPanel(
+        h5("Aine O'Gorman is a 1st Year part-time MSc. student majoring in Data Analytics."),
+        h5("Abha Aggarwal is a full-time MSc. student majoring in Software Engineering.")
+        )
+    )
+  )
+)
