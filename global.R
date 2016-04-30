@@ -1,6 +1,8 @@
 backcolor = "#4e5d6c"
 
 
+outputDir = "data/responses"
+submitDir = "data/submits"
 
 file_list = list.files(outputDir, full.names = F)
 

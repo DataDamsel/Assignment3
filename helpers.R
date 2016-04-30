@@ -113,7 +113,7 @@ invest = function(my_data, to_invest, t, re_invest, max_amount, cash_rate, seed)
   result = list(portfolio = portfolio,
                 portfolio_short = portfolio[,c("id","loanamnt",
                                                "termmonths","rate","grade","purpose",
-                                               "invested","status")],
+                                               "invested","loan_status_new")],
                 summary = summary)
   return(result)
 }
@@ -199,7 +199,7 @@ investment_summup = function(x){
 # transpose investment summary in invest tab:
 transpose = function(data) {
   # first remember the names
-  n = data$statusClass
+  n = data$Status
   
   # transpose all but the first column (name)
   data = as.data.frame(t(data[,-1]))

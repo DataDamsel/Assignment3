@@ -4,7 +4,7 @@ shinyUI(
   navbarPage(
     title = "Lending Club Interest Rate Calculator",
     id = "nav",
-    theme = "bootstrap.css",
+    theme = "www/bootstrap.css",
     inverse = TRUE,
     #position = "fixed-top",
     
@@ -53,7 +53,7 @@ shinyUI(
           actionButton("Load_report", "Load Report", icon = icon("arrow-circle-o-down")),
           conditionalPanel(
             condition = 'input.Load_report > 0',
-              includeMarkdown("data/LA.Rmd")
+              includeMarkdown("data/LC.Rmd")
           )
         )
       )
@@ -224,7 +224,7 @@ shinyUI(
  
     
     tabPanel("Code",
-             h4("Please find below the code, and the link to the ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),      
+            # h4("Please find below the code, and the link to the ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),      
              tabsetPanel(
                type = "pills", 
                position = "left",
@@ -239,7 +239,7 @@ shinyUI(
     tabPanel("About",
       wellPanel(
         h5("App made by Aine O'Gorman & Abha Aggarwal"),
-        h5("The code is available on ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),
+        #h5("The code is available on ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),
         h5("Thank you for your time and we hope you are enjoying the app!")
       ),
       

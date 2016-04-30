@@ -39,12 +39,50 @@ shinyServer(
              revol_util_new  <= input$revol_util_new [2])
     })
     
+    save_data = reactive({
+      list(to_invest = input$to_invest,
+           start_date = input$start_date,
+           max_amount = input$max_amount,
+           re_invest = input$re_invest,
+           cash_rate = input$cash_rate,
+           Amount = input$Amount,
+           Rate = input$Rate,
+           FICOrange = input$FICOrange,
+           LCgrade = input$LCgrade,
+           Term = input$Term,
+           Purpose = input$Purpose,
+           Inquieries = input$Inquieries,
+           Income = input$Income,
+           Emp = input$Emp,
+           DTI = input$DTI,
+           Home = input$Home,
+           Delinq = input$Delinq,
+           Records = input$Records,
+           Credit_History = input$Credit_History,
+           Balance = input$Balance,
+           Rev_util = input$Rev_util,
+           Accounts = input$Accounts,
+           Seed = input$Seed
+      )
+    })
     
+    
+    investment_result = reactive({
+      input$Invest
+      isolate(invest(my_data(),
+                     input$to_invest,
+                     input$start_date,
+                     input$re_invest,
+                     input$max_amount,
+                     input$cash_rate,
+                     input$Seed))
+    })
 
     
     bub_plot_data = reactive({
       filter_plot_data(LC, input$sub_data)
     })
+    
     
     observeEvent(input$Save, {
       tryCatch({
@@ -107,7 +145,38 @@ shinyServer(
     
     
     ####################################
- 
+    observeEvent(input$Submit, {
+      tryCatch({
+        saveData(save_data(), input$Name_submit, outputDir)
+        file_list2 = list.files(outputDir, full.names = F)
+        updateSelectInput(session, "Select_load", choices = file_list2)
+        
+        x = investment_result()$summary
+        tr = (tail(x$Principal, 1) + tail(x$Cash, 1) + tail(x$Reinvested, 1)) / input$to_invest
+        submition_data = data_frame(
+          Name = input$Name_submit,
+          Full_Return = tr * 100,
+          Annual_Return = (round(tr^(12/nrow(x)),3)-1)*100,
+          Strategy = sprintf("%s_%s.RDS", input$Name_submit, as.integer(Sys.time()))
+        )
+        
+        saveData(submition_data, input$Name_submit, submitDir)
+        
+      })
+    })
+    
+    
+    HOF = reactive({
+      input$Submit
+      submits_list = list.files(submitDir, full.names = TRUE)
+      return(load_HOF(submits_list))
+    })
+    
+    
+    output$HOF = renderDataTable({
+      HOF()
+    })
+    
     output$explore_plot = renderPlot({
       bub_plot(bub_plot_data(), input$Bub_category, input$Bub_x_axis, input$Bub_y_axis, input$Bub_size)
     })
@@ -140,11 +209,36 @@ shinyServer(
             prettyNum(sum(my_data()$loanamnt/1), big.mark = ","),".") 
     })
     
+    output$Investment_result = renderText({
+      x = investment_result()$summary
+      tr = tail(x$Principal, 1) + tail(x$Cash, 1) + tail(x$Reinvested, 1)
+      paste0("You ended up with a final return of: $", prettyNum(round(tr,0), big.mark = ","),
+             ". This corresponds to an annual return of: ", round((tr/input$to_invest)^(12/nrow(x))-1,3)*100, "%.")
+    })
+    
     
     output$plot1 = renderPlot({
       plot_portfolio(investment_result()$summary)
     })    
-
+    
+    
+    output$Investment_summup = renderDataTable(
+      if(input$Transpose) {
+        transpose(investment_summup(investment_result()$portfolio))
+      } else {
+        investment_summup(investment_result()$portfolio)
+      },
+      options = list(searching = FALSE, paging = FALSE)
+    )
+    
+    
+    output$Portfolio = renderDataTable(
+      investment_result()$portfolio_short,
+      options = list(
+        lengthMenu = list(c(20, 50, -1), c('20', '50', 'All')),
+        pageLength = -1)
+    )
+    
     
   }
 )
