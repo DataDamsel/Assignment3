@@ -32,11 +32,9 @@ shinyUI(
              wellPanel(
                h3("Goal of the project:"),
                h5("We will present and explore the data provided by LC at this", span(a(href="https://www.lendingclub.com/info/download-data.action", "address."))), 
-               h5("This data was made available to us after the creation of an investor account."),
-               h5("The data consists in 4 files updated every quarter on the same day as the quaterly results of the compagny are released. They contain information on almost all"),
-               h5("the loans issued by LC. The only loans missing from these files are the few loans where LC was not authorized to release publicly the details of the transactions."),
-               h5("The information available for each loan consists of all the details of the loans at the time of their issuance as well as more information relative to the latest"),
-               h5("status of loan such as how much principal has been paid so far, how much interest, if the loan was fully paid or defaulted, or if the borrower is late on payments etc.")
+               h5("We could not access all of the data available as we were not allowed to open an investor account."),
+               h5("The information available for each loan consists of a number of details of the loans at the time of their issuance as well as more information relative to the latest"),
+               h5("status of loan such as if the loan was fully paid or defaulted, or if the borrower is late on payments etc.")
              ),
              
              wellPanel(
@@ -238,14 +236,13 @@ shinyUI(
     
     tabPanel("About",
       wellPanel(
-        h5("App made by Aine O'Gorman & Abha Aggarwal"),
-        #h5("The code is available on ", span(a(href="https://github.com/DataDamsel/ShinyApp", "github"))),
+        h5("App made by Aine O'Gorman"),
+        #h5("The code is available on ", span(a(href="https://github.com/DataDamsel/Assignment3", "github"))),
         h5("Thank you for your time and we hope you are enjoying the app!")
       ),
       
       wellPanel(
-        h5("Aine O'Gorman is a 1st Year part-time MSc. student majoring in Data Analytics."),
-        h5("Abha Aggarwal is a full-time MSc. student majoring in Software Engineering.")
+        h5("Aine O'Gorman is a 1st Year part-time MSc. student majoring in Data Analytics.")
         )
     )
   )
