@@ -7,9 +7,9 @@ apt-get install -y awscli
 # Update RStudio Server
 # Get most current version from https://www.rstudio.com/products/rstudio/download-server/
 apt-get -y install gdebi-core
-wget https://download2.rstudio.org/rstudio-server-0.99.893-amd64.deb
-gdebi -n rstudio-server-0.99.893-amd64.deb
-rm -f rstudio-server-0.99.893-amd64.deb
+wget https://download2.rstudio.org/rstudio-server-0.99.896-amd64.deb
+gdebi -n rstudio-server-0.99.896-amd64.deb
+rm -f rstudio-server-0.99.896-amd64.deb
 
 # Configure git for RStudio
 sudo -H -u rstudio bash -c "git config --global user.name 'datadamsel'" # CHANGE
@@ -26,7 +26,7 @@ install.r docopt
 
 # Install packages
 # Hadleyverse
-install2.r devtools dplyr ggplot2 lubridate magrittr rvest readr tidyr shiny doParallel caret pROC corrplot xtable randomForest RCurl
+install2.r devtools dplyr ggplot2 lubridate magrittr rvest readr tidyr shiny shinythemes doParallel caret pROC corrplot xtable randomForest RCurl
 # Spatial
 install2.r sp raster rgdal rgeos geosphere maps maptools rasterVis spatstat
 rm -rf /tmp/downloaded_packages/ /tmp/*.rd
