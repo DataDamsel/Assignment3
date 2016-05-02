@@ -1,7 +1,7 @@
 ###Initial Data Cleanse
 ========================================================
 
-Peer-to-peer loans service [Lending Club][lending] made publicly available a data set of loans. 
+Peer-to-peer loans service ,Lending Club, made publicly available a data set of loans. 
 Based on the entire data set, I will try to identify and quantify associations between the interest rate applied to a loan 
 and the other variables in the data set.
 
