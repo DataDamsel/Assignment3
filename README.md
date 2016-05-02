@@ -2,11 +2,9 @@
 
 This project is influenced by the powerful disruption that cloud computing has had on the world of Finance:
 
-Causing the current Fintech boom
-Enabling a challenger banking model of Peer2Peer lending
-rewriting traditional credit risk management
+(1) Causing the current Fintech boom    (2)    Enabling a challenger banking model of Peer2Peer lending   &   (3)   Rewriting traditional credit risk management
 
-The big data set that I have used comes from LendingClub.com.
+The big data set that I have used comes from LendingClub.com goldmine of Loans data
 
 App
 ====
