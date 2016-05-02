@@ -28,7 +28,12 @@ https://github.com/DataDamsel/Assignment3/blob/master/Documentation/App%20Implem
 
 Data Exploration
 ================
-As I explored the data I foudn some verey interesting insights and have provided some of the many graphs I produced. 
+As I explored the data I found some verey interesting insights and have provided some of the many graphs I produced. 
+This Heat map shows the annual income per state and is also tagged with the number of loans per state
+![Image of AnnualIncByState]( https://github.com/DataDamsel/Assignment3/blob/master/Graphs/State%20and%20no%20of%20loans.png)
+
+
+
 The rest can be seen in my data exploration document:
 https://github.com/DataDamsel/Assignment3/blob/master/Documentation/Exploratory%20Data%20Analysis.doc
  
