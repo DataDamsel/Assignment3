@@ -1,10 +1,12 @@
-# Assignment3
+# Assignment3 :blush:
 
-This project is influenced by the powerful disruption that cloud computing has had on the world of Finance:
+This project is influenced by the powerful disruption that cloud computing has had on the world of Finance: :euro:
 
-(1) Causing the current Fintech boom    (2)    Enabling a challenger banking model of Peer2Peer lending   &   (3)   Rewriting traditional credit risk management
+* Causing the current Fintech boom    
+* Enabling a challenger banking model of Peer2Peer lending   
+* Rewriting traditional credit risk management
 
-The big data set that I have used comes from LendingClub.com goldmine of Loans data
+The big data set that I have used comes from LendingClub.com goldmine of Loans data. :moneybag:
 
 App
 ====
@@ -46,4 +48,4 @@ Future Work
 ===========
 
 The app could connect to LendingClub via REST API  and the model could retrain the data each time so the results get more accurate over time as more data becomes available.
-I emailed LendingClub.com to see if I could get an investor account and therefore access to the REST API (only registered users can get this access to the REST API and it is not available in Ireland at this time).  LendingClub.com responded saying they “hope to offer investment opportunities to non US investors in the near future”.  So if this happens there would be an option to do further work on this app.
+:email: I emailed LendingClub.com to see if I could get an investor account and therefore access to the REST API (only registered users can get this access to the REST API and it is not available in Ireland at this time).  LendingClub.com responded saying they “hope to offer investment opportunities to non US investors in the near future”.  So if this happens there would be an option to do further work on this app.
